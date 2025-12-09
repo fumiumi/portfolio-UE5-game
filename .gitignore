@@ -1,0 +1,44 @@
+# --- Unreal Engine 基本 ---
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+*.log
+
+# UE 開発者用のローカル作業フォルダ
+Content/Developers/
+
+# 作業環境だけに置きたい「DevOnly」アセットは丸ごと除外
+Content/DevOnly/
+
+# IDE 関連
+.vs/
+.vscode/
+*.VC.db
+*.VC.opendb
+*.sln
+*.suo
+
+# OS 系
+.DS_Store
+Thumbs.db
+
+# 環境依存の設定
+.env
+.env.*
+*.secret
+*.key
+
+# ローカル専用設定はコミットしない
+Config/Default*.local.ini
+
+# API キーなどを入れる自前フォルダ（作る場合）
+Config/Secrets/
+
+# --- 大容量アセット対策---
+# 重いアセットをまとめるフォルダ
+# Git-LFSは使わない方針
+# 配布時はgoogleドライブを仕様
+Content/Movies/
+Content/AudioRaw/
+Content/HighResTextures/
