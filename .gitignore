@@ -42,3 +42,6 @@ Config/Secrets/
 Content/Movies/
 Content/AudioRaw/
 Content/HighResTextures/
+
+# お借りしているアセット
+Content/ThirdParty/
