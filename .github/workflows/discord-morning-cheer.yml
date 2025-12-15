@@ -1,0 +1,109 @@
+name: Morning Cheer from Discord Bot
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # UTC 00:00 = JST 09:00
+  workflow_dispatch:
+    inputs:
+      debug_wait_json:
+        description: "If true, add ?wait=true and print resonse body on success (debug only)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morning-cheer
+  cancel-in-progress: true
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pick a message
+        id: msg
+        shell: bash
+        run: |
+          # エラー処理
+          set -euo pipefail
+
+          # メッセージ一覧
+          messages=(
+            "1. 創造性は自然な生命の秩序であり、生命は純粋な創造的エネルギーだ。"
+            "2. 人間を含め、あらゆる生命には創造的な力が宿っている。"
+            "3. 創造性に心を開くとき、私たちは内なる創造主の創造性に心を開く。"
+            "4. 私たち自身が創造である。そして私たちは、想像することによって、創造の流れを断ち切らぬよう定められている。"
+            "5. 創造性とは神からの贈り物である。創造性を用いるとは神に贈り物をお返しすることだ。"
+            "6. 創造的であることを拒むのは、自分勝手であり、私たちの本性にそむく行為だ。"
+            "7. 創造性を探求するとき、私たちは人生に秩序をもたらす流れとしての神に心を開く。"
+            "8. 創造主への回路を開くと、穏やかだが強力な変化がたくさん起きる。"
+            "9. 創造性にいくら心を開いても安全である。"
+            "10. 私たちの創造したいという夢や願望は、神聖な源からやってくる。私たちが夢に向かって進んでいくことは、自分の崇高な側面に向かっていくことを意味する。"
+          )
+
+          # UTC基準でローテーションさせる。
+          doy=$(date -u +%j)           # 001-365 or 366, UTC
+          idx=$(( (10#$doy - 1) % 10 )) # 0-9
+
+          echo "content=${messages[$idx]}" >> "$GITHUB_OUTPUT"
+
+      - name: Send to Discord via webhook
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TEXT: ${{ steps.msg.outputs.content }}
+          DEBUG_WAIT_JSON: ${{ github.event.inputs.debug_wait_json || 'false' }} # デバッグ用入力
+        shell: bash
+        run: |
+          # エラー処理
+          set -euo pipefail
+
+          payload_file="$(mktemp)"
+          res_file="$(mktemp)"
+
+          # 一時ファイル削除
+          # GitHub-hosted runnerはジョブ終了で自動削除されるが、お作法として。
+          trap 'rm -f "$payload_file" "$res_file"' EXIT
+          
+
+          # WEBHOOK, TEXTが設定されているか確認
+          : "${WEBHOOK:?DISCORD_WEBHOOK_URL secret is not set}"
+          : "${TEXT:?TEXT is empty}"
+
+          # PythonでJSONを安全に生成
+          # ubuntu-latestにはPythonが入っているので利用する。
+          python - <<'PY' > "$payload_file"
+          import json, os
+          content = os.environ["TEXT"]
+          print(json.dumps({"content": content}, ensure_ascii=False))
+          PY
+
+          # 変数設定 
+          url="$WEBHOOK"
+
+          # デバッグ用オプション: wait=trueを付与
+          if [[ "${DEBUG_WAIT_JSON}" == "true" ]]; then
+            if [[ "$url" == *\?* ]]; then url="${url}&wait=true"; else url="${url}?wait=true"; fi
+          fi
+
+          # HTTPリクエスト
+          http_code="$(curl -sS -o "$res_file" -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -X POST -d @"$payload_file" \
+            "$url")"
+
+          # 200か204以外はエラーとしてbody表示
+          if [[ "$http_code" != "204" && "$http_code" != "200" ]]; then
+            echo "❌Discord webhook failed: HTTP $http_code"
+            echo "Response body:"
+            cat "$res_file" || true
+            exit 1
+          fi
+
+          echo "✅Discord webhook success: HTTP $http_code"
+
+          # デバッグ時だけ成功レスポンスも表示
+          if [[ "${DEBUG_WAIT_JSON}" == "true" ]]; then
+            echo "Response body (debug):"
+            cat "$res_file" || true
+          fi
